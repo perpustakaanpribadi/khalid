@@ -39,6 +39,9 @@
       color: #0d8f3b;
       font-weight: bold;
     }
+    a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -62,7 +65,7 @@
 <script>
   const supabaseClient = supabase.createClient(
     "https://xbbodgtxbjqoqxmzqrva.supabase.co",
- "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhiYm9kZ3R4Ympxb3F4bXpxcnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwNzIxNTksImV4cCI6MjA2NTY0ODE1OX0.2JcNFYUasDTbZF6u6R5xUsdh8dilxUiFvoMYp4MmL9s" // ganti dengan anon key kamu
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhiYm9kZ3R4Ympxb3F4bXpxcnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwNzIxNTksImV4cCI6MjA2NTY0ODE1OX0.2JcNFYUasDTbZF6u6R5xUsdh8dilxUiFvoMYp4MmL9s"
   );
 
   async function tampilkanRiwayat() {
@@ -79,7 +82,9 @@
     const tbody = document.getElementById("tabelRiwayat");
     tbody.innerHTML = "";
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date();
+    today.setHours(0,0,0,0);  // Pastikan tanpa jam-menit
+    const maxReminderDate = new Date(today.getTime() + (7 * 24 * 60 * 60 * 1000));
 
     for (const row of pinjam) {
       const { data: buku } = await supabaseClient
@@ -89,33 +94,48 @@
         .single();
 
       const judul = buku?.judul || "-";
-
       let keterangan = "";
       let kls = "";
+      let tombolWA = "";
+
+      const tglKembaliStr = row.tanggal_kembali;
+      const tglKembaliDate = new Date(tglKembaliStr);
+      tglKembaliDate.setHours(0,0,0,0);  // Normalize time
 
       if (row.status === "Dikembalikan") {
         keterangan = "Sudah dikembalikan";
         kls = "green";
-      } else if (row.status === "Dipinjam" && row.tanggal_kembali < today) {
-        keterangan = "Lambat";
-        kls = "red";
-      } else {
-        keterangan = "Belum dikembalikan";
-        kls = "orange";
-      }
+      } else if (row.status === "Dipinjam") {
+        if (tglKembaliDate < today) {
+          keterangan = "Lambat";
+          kls = "red";
 
-      // Tombol WA hanya jika telat dan status = Dipinjam
-      let tombolWA = "";
-      if (
-        row.status === "Dipinjam" &&
-        row.tanggal_kembali < today &&
-        row.nomor_hp
-      ) {
-        const nomor = row.nomor_hp.replace(/^0/, "62");
-        const pesan = encodeURIComponent(
-          `Halo ${row.nama_peminjam}, buku "${judul}" yang Anda pinjam sudah lewat tanggal kembali (${row.tanggal_kembali}). Mohon segera dikembalikan.`
-        );
-        tombolWA = `<br><a href="https://wa.me/${nomor}?text=${pesan}" target="_blank">📤 Kirim WA</a>`;
+          // WA Reminder Telat
+          if (row.nomor_hp) {
+            const nomor = row.nomor_hp.replace(/^0/, "62");
+            const pesan = encodeURIComponent(
+              `Halo ${row.nama_peminjam}, buku "${judul}" yang Anda pinjam sudah LEWAT jatuh tempo (${tglKembaliStr}). Mohon segera dikembalikan.`
+            );
+            tombolWA = `<br><a href="https://wa.me/${nomor}?text=${pesan}" target="_blank">📤 WA Telat</a>`;
+          }
+
+        } else if (tglKembaliDate >= today && tglKembaliDate <= maxReminderDate) {
+          keterangan = "Belum Dikembalikan";
+          kls = "orange";
+
+          // WA Reminder Awal
+          if (row.nomor_hp) {
+            const nomor = row.nomor_hp.replace(/^0/, "62");
+            const pesan = encodeURIComponent(
+              `Halo ${row.nama_peminjam}, ini pengingat bahwa buku "${judul}" yang Anda pinjam akan jatuh tempo pada ${tglKembaliStr}. Mohon dikembalikan tepat waktu.`
+            );
+            tombolWA = `<br><a href="https://wa.me/${nomor}?text=${pesan}" target="_blank">📤 WA Pengingat</a>`;
+          }
+
+        } else {
+          keterangan = "Belum dikembalikan";
+          kls = "orange";
+        }
       }
 
       const tr = document.createElement("tr");
