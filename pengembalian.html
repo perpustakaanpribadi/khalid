@@ -49,6 +49,7 @@
 <table>
   <thead>
     <tr>
+      <th>No</th>
       <th>Judul Buku</th>
       <th>Peminjam</th>
       <th>Tgl Pinjam</th>
@@ -80,6 +81,7 @@
     const tbody = document.getElementById("daftarPengembalian");
     tbody.innerHTML = "";
 
+    let no = 1;
     for (const row of pinjaman) {
       const { data: buku } = await supabaseClient
         .from("buku")
@@ -89,6 +91,7 @@
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
+        <td>${no}</td>
         <td>${buku?.judul || "-"}</td>
         <td>${row.nama_peminjam}</td>
         <td>${row.tanggal_pinjam}</td>
@@ -96,6 +99,7 @@
         <td><button onclick="kembalikan('${row.id}')">Kembalikan</button></td>
       `;
       tbody.appendChild(tr);
+      no++;
     }
   }
 
