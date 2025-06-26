@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Perpanjangan Masa Pinjam</title>
+  <link rel="icon" href="ikon.png" type="image/png">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: linear-gradient(135deg, #00C9FF);
+      padding: 20px;
+      margin: 0;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+    th {
+      background: #00bcd4;
+      color: white;
+    }
+    button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 5px;
+      background: #4caf50;
+      color: white;
+      cursor: pointer;
+      margin-left: 5px;
+    }
+    button:hover {
+      background: #388e3c;
+    }
+    select, input[type="number"] {
+      padding: 5px;
+      border-radius: 5px;
+    }
+    .info {
+      margin-top: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🔁 Perpanjangan Masa Pinjam Buku</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>No</th>
+      <th>Nama Peminjam</th>
+      <th>Judul Buku</th>
+      <th>Tanggal Kembali Lama</th>
+      <th>Perpanjangan</th>
+    </tr>
+  </thead>
+  <tbody id="tabelPerpanjangan"></tbody>
+</table>
+
+<div class="info" id="status"></div>
+
+<script>
+  const supabaseClient = supabase.createClient(
+    "https://xbbodgtxbjqoqxmzqrva.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhiYm9kZ3R4Ympxb3F4bXpxcnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwNzIxNTksImV4cCI6MjA2NTY0ODE1OX0.2JcNFYUasDTbZF6u6R5xUsdh8dilxUiFvoMYp4MmL9s"
+  );
+
+  async function loadData() {
+    const { data: pinjam, error } = await supabaseClient
+      .from('peminjaman')
+      .select('*')
+      .eq('status', 'Dipinjam');
+
+    if (error) {
+      document.getElementById('status').textContent = "Gagal memuat data.";
+      return;
+    }
+
+    const tbody = document.getElementById('tabelPerpanjangan');
+    tbody.innerHTML = "";
+
+    let no = 1;
+    for (const row of pinjam) {
+      const { data: buku } = await supabaseClient
+        .from('buku')
+        .select('judul')
+        .eq('id', row.id_buku)
+        .single();
+
+      const judul = buku?.judul || "-";
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${no}</td>
+        <td>${row.nama_peminjam}</td>
+        <td>${judul}</td>
+        <td>${row.tanggal_kembali}</td>
+        <td>
+          <select id="perpanjang_${row.id}">
+            <option value="3">3 Hari</option>
+            <option value="7">7 Hari</option>
+            <option value="14">14 Hari</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input type="number" id="custom_${row.id}" placeholder="Jumlah hari" style="width:80px; display:none;">
+          <button onclick="perpanjang(${row.id}, '${row.tanggal_kembali}')">Perpanjang</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      // Dropdown onchange handler
+      document.getElementById(`perpanjang_${row.id}`).addEventListener('change', function() {
+        const customInput = document.getElementById(`custom_${row.id}`);
+        if (this.value === 'custom') {
+          customInput.style.display = 'inline-block';
+        } else {
+          customInput.style.display = 'none';
+        }
+      });
+
+      no++;
+    }
+  }
+
+  async function perpanjang(id, tanggalLama) {
+    const select = document.getElementById(`perpanjang_${id}`);
+    let jumlahHari = 0;
+
+    if (select.value === "custom") {
+      const customInput = document.getElementById(`custom_${id}`);
+      jumlahHari = parseInt(customInput.value);
+      if (isNaN(jumlahHari) || jumlahHari <= 0) {
+        alert("Jumlah hari custom harus angka positif.");
+        return;
+      }
+    } else {
+      jumlahHari = parseInt(select.value);
+    }
+
+    const tglLama = new Date(tanggalLama);
+    tglLama.setDate(tglLama.getDate() + jumlahHari);
+    const tglBaru = tglLama.toISOString().split('T')[0];
+
+    const { error } = await supabaseClient
+      .from('peminjaman')
+      .update({ tanggal_kembali: tglBaru })
+      .eq('id', id);
+
+    if (error) {
+      document.getElementById('status').textContent = "❌ Gagal perpanjang.";
+    } else {
+      document.getElementById('status').textContent = `✅ Berhasil memperpanjang ${jumlahHari} hari ke tanggal ${tglBaru}.`;
+      loadData();
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadData);
+</script>
+
+</body>
+</html>
